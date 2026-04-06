@@ -1,0 +1,16 @@
+# Source (consumers use dist/)
+src/
+!src/components/InjectAIChat.astro
+!src/astro/InjectAIChat.astro
+
+# Dev files
+node_modules/
+tsconfig.json
+*.map
+
+# Test & local config
+*.test.ts
+*.spec.ts
+.env
+.env.
+.npmignore

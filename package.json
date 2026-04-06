@@ -1,0 +1,91 @@
+{
+  "name": "@injectailabs/emdash-injectai",
+  "version": "1.0.1",
+  "description": "AI chatbot plugin for EmDash CMS and Astro — powered by your own content. RAG-based chat, file uploads, quiz & module generation. Easy to install, SEO-friendly, no coding required.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./sandbox": {
+      "types": "./dist/plugin.d.ts",
+      "import": "./dist/plugin.js"
+    },
+    "./admin": {
+      "types": "./dist/admin.d.ts",
+      "import": "./dist/admin.js"
+    },
+    "./astro": "./src/astro/index.ts",
+    "./components": "./src/components/InjectAIChat.astro"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "src/components/InjectAIChat.astro",
+    "src/astro/InjectAIChat.astro",
+    "src/astro/index.ts",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "peerDependencies": {
+    "@cloudflare/kumo": ">=0.1.0",
+    "@emdash-cms/admin": ">=0.1.0",
+    "emdash": ">=0.1.0",
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@cloudflare/kumo": { "optional": false },
+    "@emdash-cms/admin": { "optional": false },
+    "react": { "optional": false },
+    "react-dom": { "optional": false }
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.28",
+    "@types/react-dom": "^18.3.7",
+    "emdash": "^0.1.0",
+    "typescript": "^5.4.0"
+  },
+  "keywords": [
+    "emdash",
+    "emdash-plugin",
+    "astro",
+    "astro-plugin",
+    "astro-cms",
+    "ai",
+    "ai-chatbot",
+    "chatbot",
+    "rag",
+    "injectai",
+    "cms",
+    "cms-plugin",
+    "content-ai",
+    "knowledge-base",
+    "pdf-chat",
+    "document-chat",
+    "llm",
+    "openai",
+    "anthropic",
+    "cerebras"
+  ],
+  "license": "MIT",
+  "author": "InjectAI Labs <injectailabs.space@gmail.com>",
+  "homepage": "https://injectailabs.space",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/muzammildafedar/emdash-injectai"
+  },
+  "bugs": {
+    "url": "https://github.com/muzammildafedar/emdash-injectai/issues"
+  }
+}

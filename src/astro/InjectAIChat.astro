@@ -1,0 +1,419 @@
+---
+/**
+ * InjectAIChat — block component for Portable Text rendering.
+ * Receives block data via Astro.props.node (EmDash PT block convention).
+ * Mode (floating/fullpage) is read from Chat Designer settings at runtime.
+ */
+const rootId = "iai-" + Math.random().toString(36).slice(2, 8);
+// node contains the PT block data — not used for rendering but available if needed
+const { node } = Astro.props;
+---
+
+<div id={rootId} style="width:100%" data-injectai-block></div>
+
+<script define:vars={{ rootId }}>
+(async () => {
+  let cfg = {};
+  try {
+    const res = await fetch("/_emdash/api/plugins/injectai/config");
+    if (res.ok) { const j = await res.json(); cfg = (j && j.data) ? j.data : j; }
+  } catch {}
+
+  const design = cfg.chatDesign || {};
+  const tenant = cfg.tenantMeta || {};
+  // SECURITY: all chat calls go through server-side proxy — Modal API never exposed to browser
+  const PROXY  = "/_emdash/api/plugins/injectai";
+  const topK   = cfg.topK || 5;
+  const mode   = design.mode || "floating";
+  const accent = design.accent || "#6366f1";
+  const bm     = tenant.key && tenant.value ? { [tenant.key]: tenant.value } : {};
+
+  const root = document.getElementById(rootId);
+  if (!root) return;
+
+  if (mode === "fullpage") buildFullpage(root);
+  else buildFloating(root);
+
+  function esc(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+  async function pf(url, method, body) {
+    const r = await fetch(url, { method: method||"GET", headers: {"Content-Type":"application/json"}, body: body ? JSON.stringify(body) : undefined });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || "HTTP " + r.status);
+    return d;
+  }
+
+  function buildChat(el, height) {
+    const il = design.theme === "light";
+    const bg = design.bg || (il ? "#fff" : "#0f1117");
+    const tc = il ? "#1d2327" : "#e2e8f0";
+    const mc = il ? "#646970" : "#94a3b8";
+    const bc = il ? "#e0e0e0" : "#2d3148";
+    const sb = il ? "#f6f7f7" : "#1a1d27";
+    const bb = design.botBubble || (il ? "#f1f5f9" : "#1a1d27");
+    const ub = design.userBubble || accent;
+    const fs = (design.fontSize || 14) + "px";
+    const r  = (design.radius || 16) + "px";
+    const logo  = design.logo || "";
+    const title = design.title || "AI Assistant";
+    const uid   = "c" + Math.random().toString(36).slice(2, 7);
+    const SK    = "iai_s_" + (tenant.value || "d");
+
+    let chips = []; try { chips = JSON.parse(design.suggestions || "[]"); } catch {}
+    const ch = chips.map(c => `<button class="iai-chip" style="background:${sb};border:1px solid ${bc};color:${tc};padding:6px 14px;border-radius:99px;cursor:pointer;font-size:13px;font-weight:500">${esc(c)}</button>`).join("");
+    const av = logo ? `<img src="${esc(logo)}" style="width:30px;height:30px;border-radius:50%;object-fit:cover">` : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><line x1="12" y1="7" x2="12" y2="11"/></svg>`;
+
+    el.innerHTML = `<div style="display:flex;flex-direction:column;height:${height};background:${bg};border-radius:${r};overflow:hidden;font-family:system-ui,sans-serif;font-size:${fs};box-shadow:0 4px 24px rgba(0,0,0,.08);border:1px solid ${bc}">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid ${bc};background:${bg}">
+        <button id="iai-new-${uid}" style="background:none;border:none;cursor:pointer;color:${mc};padding:6px;border-radius:4px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+        <div style="display:flex;align-items:center;gap:10px;background:${sb};border:1px solid ${bc};border-radius:99px;padding:6px 16px 6px 6px">
+          <div style="width:36px;height:36px;border-radius:50%;background:${accent};display:flex;align-items:center;justify-content:center;color:#fff;position:relative">${av}<span id="iai-dot-${uid}" style="position:absolute;bottom:1px;right:1px;width:9px;height:9px;border-radius:50%;background:#f59e0b;border:2px solid ${bg}"></span></div>
+          <div><div style="font-size:14px;font-weight:700;color:${tc}">${esc(title)}</div>${design.subtitle ? `<div style="font-size:12px;color:${mc}">${esc(design.subtitle)}</div>` : ""}</div>
+        </div>
+        <div style="width:32px"></div>
+      </div>
+      <div id="iai-msgs-${uid}" style="flex:1;overflow-y:auto;padding:20px 16px;display:flex;flex-direction:column;gap:16px;background:${bg}">
+        <div id="iai-w-${uid}"><div style="display:flex;gap:10px;align-items:flex-start"><div style="width:30px;height:30px;border-radius:50%;background:${accent};display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0">${av}</div><div><div style="padding:10px 14px;border-radius:18px;border-top-left-radius:4px;background:${bb};border:1px solid ${bc};color:${tc}">${esc(design.welcome || "Hi! How can I help you today?")}</div>${ch ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">${ch}</div>` : ""}</div></div></div>
+      </div>
+      <form id="iai-f-${uid}" style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid ${bc};background:${bg}" novalidate>
+        <input id="iai-i-${uid}" style="flex:1;background:${sb};border:1px solid ${bc};border-radius:99px;padding:10px 18px;color:${tc};font-size:14px;outline:none;font-family:inherit" placeholder="${esc(design.placeholder || "Type your message")}" autocomplete="off" maxlength="2000">        <button type="submit" id="iai-s-${uid}" style="width:38px;height:38px;border-radius:50%;border:none;background:${accent};cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;opacity:.35;flex-shrink:0" disabled><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+      </form>
+      <div style="display:flex;align-items:center;justify-content:center;padding:6px 14px 8px;gap:6px;background:${bg}"><span style="font-size:11px;color:${mc};opacity:.6">AI can make mistakes</span><span style="font-size:11px;color:${mc};opacity:.4">·</span><a href="https://injectailabs.space" target="_blank" rel="noopener" style="font-size:11px;color:${mc};opacity:.6;text-decoration:none;font-weight:600">Powered by InjectAI Labs</a></div>
+    </div>`;
+
+    const mb = el.querySelector("#iai-msgs-" + uid);
+    const inp = el.querySelector("#iai-i-" + uid);
+    const sb2 = el.querySelector("#iai-s-" + uid);
+    const dot = el.querySelector("#iai-dot-" + uid);
+    let sid = null, lding = false;
+
+    inp.addEventListener("input", () => { sb2.disabled = !inp.value.trim() || lding; sb2.style.opacity = sb2.disabled ? ".35" : "1"; });
+    el.querySelectorAll(".iai-chip").forEach(c => c.addEventListener("click", () => { inp.value = c.textContent; sb2.disabled = false; sb2.style.opacity = "1"; inp.focus(); }));
+
+    async function initSession() {
+      if (!PROXY) { dot.style.background = "#ef4444"; return; }
+      try {
+        const saved = sessionStorage.getItem(SK);
+        if (saved) {
+          try {
+            const ex = await pf(PROXY + "/chat/session/get?sessionId=" + encodeURIComponent(saved));
+            if (ex.success && ex.session) {
+              sid = ex.session.session_id;
+              const msgs = ex.session.messages || [];
+              if (msgs.length) { el.querySelector("#iai-w-" + uid)?.remove(); msgs.forEach(m => am(m.role === "user" ? "user" : "assistant", m.content || m.message || "", m.sources, m.created_at)); mb.scrollTop = mb.scrollHeight; }
+              dot.style.background = "#22c55e"; return;
+            }
+          } catch {}
+        }
+        const d = await pf(PROXY + "/chat/session", "POST", { metadata_filters: bm });
+        sid = d.session.session_id; sessionStorage.setItem(SK, sid); dot.style.background = "#22c55e";
+      } catch { dot.style.background = "#ef4444"; }
+    }
+    initSession();
+
+    el.querySelector("#iai-new-" + uid)?.addEventListener("click", () => { mb.innerHTML = ""; sid = null; sessionStorage.removeItem(SK); initSession(); });
+
+    function am(role, text, sources, ts) {
+      el.querySelector("#iai-w-" + uid)?.remove();
+      const e = document.createElement("div");
+      e.style.cssText = "display:flex;gap:10px;align-items:flex-start;" + (role === "user" ? "flex-direction:row-reverse" : "");
+      const bs = role === "user" ? `background:${ub};color:#fff;border-top-right-radius:4px` : `background:${bb};border:1px solid ${bc};color:${tc};border-top-left-radius:4px`;
+      const as2 = role === "user" ? `background:${il ? "#e8eaed" : "#2d3148"};color:${mc}` : `background:${accent}`;
+      const ac2 = role === "user" ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>` : av;
+      const sender = role === "user" ? "You" : esc(title);
+      const time = ts ? new Date(ts).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}) : new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
+      const srcHtml = (sources && sources.length) ? buildSrc(sources) : "";
+      e.innerHTML = `<div style="width:30px;height:30px;border-radius:50%;${as2};display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0">${ac2}</div><div style="max-width:80%;display:flex;flex-direction:column;gap:4px"><div style="font-size:11px;font-weight:700;color:${mc}">${sender}</div><div style="padding:10px 14px;border-radius:18px;${bs};font-size:${fs};line-height:1.6;white-space:pre-wrap;word-break:break-word">${esc(text)}</div>${srcHtml}<div style="font-size:11px;color:${mc};opacity:.6">${time}</div></div>`;
+      mb.appendChild(e); mb.scrollTop = mb.scrollHeight;
+    }
+
+    function buildSrc(sources) {
+      const items = sources.filter(s => s.source_filename || s.text).map((s, i) => {
+        const score = s.score != null ? s.score.toFixed(2) : "";
+        const fname = esc(s.source_filename || "Source " + (i+1));
+        const snippet = esc((s.text || "").replace(/\s+/g," ").trim().slice(0, 160));
+        const url = s.source_url || "";
+        return `<div style="background:${sb};border-radius:8px;padding:8px 10px;border:1px solid ${bc};margin-top:4px"><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:${accent};margin-bottom:3px"><span>${url ? `<a href="${esc(url)}" target="_blank" rel="noopener" style="color:${accent};text-decoration:none">📄 ${fname}</a>` : `📄 ${fname}`}</span>${score ? `<span style="font-family:monospace;color:${mc}">${score}</span>` : ""}</div><p style="font-size:11px;color:${mc};margin:0;line-height:1.5">${snippet}${snippet.length >= 160 ? "…" : ""}</p></div>`;
+      }).join("");
+      if (!items) return "";
+      return `<details style="font-size:12px;margin-top:4px"><summary style="cursor:pointer;color:${mc};font-size:11px">${sources.length} source${sources.length > 1 ? "s" : ""}</summary>${items}</details>`;
+    }
+
+    el.querySelector("#iai-f-" + uid)?.addEventListener("submit", async e => {
+      e.preventDefault();
+      const t = inp.value.trim(); if (!t || lding || !api) return;
+      lding = true; inp.value = ""; sb2.disabled = true; sb2.style.opacity = ".35"; am("user", t, null, null);
+      const ty = document.createElement("div"); ty.id = "iai-ty-" + uid;
+      ty.innerHTML = `<div style="display:flex;gap:4px;padding:12px 14px;background:${bb};border:1px solid ${bc};border-radius:18px;border-top-left-radius:4px;width:fit-content"><span style="width:6px;height:6px;border-radius:50%;background:${mc};animation:iai-b .9s infinite"></span><span style="width:6px;height:6px;border-radius:50%;background:${mc};animation:iai-b .9s .18s infinite"></span><span style="width:6px;height:6px;border-radius:50%;background:${mc};animation:iai-b .9s .36s infinite"></span></div>`;
+      mb.appendChild(ty); mb.scrollTop = mb.scrollHeight;
+      try {
+        if (!sid) { const s = await pf(PROXY + "/chat/session", "POST", { metadata_filters: bm }); sid = s.session.session_id; sessionStorage.setItem(SK, sid); }
+        const data = await pf(PROXY + "/chat/query", "POST", { query: t, session_id: sid });
+        document.getElementById("iai-ty-" + uid)?.remove(); am("assistant", data.result?.answer || "No response.", data.result?.sources, null);
+      } catch (err) { document.getElementById("iai-ty-" + uid)?.remove(); am("assistant", err.message); }
+      finally { lding = false; sb2.disabled = !inp.value.trim(); sb2.style.opacity = sb2.disabled ? ".35" : "1"; inp.focus(); }
+    });
+
+    if (!document.getElementById("iai-bs")) { const s = document.createElement("style"); s.id = "iai-bs"; s.textContent = "@keyframes iai-b{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}"; document.head.appendChild(s); }
+  }
+
+  function buildFloating() {
+    const logo  = design.logo || "";
+    const title = design.title || "AI Assistant";
+    const bc2 = logo ? `<img src="${esc(logo)}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">` : `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
+    root.innerHTML = `<div id="iai-fw" style="position:fixed;bottom:24px;right:24px;z-index:99998;display:flex;flex-direction:column;align-items:flex-end;gap:12px"><div id="iai-fp" style="display:none;width:420px;max-height:85vh;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.15);overflow:hidden"><div id="iai-fi"></div></div><button id="iai-fb" style="width:56px;height:56px;border-radius:50%;border:none;background:${accent};cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.2)" aria-label="Open chat">${bc2}</button></div>`;
+    const wrap = document.getElementById("iai-fw");
+    const panel = document.getElementById("iai-fp"), btn = document.getElementById("iai-fb"), inner = document.getElementById("iai-fi");
+    let built = false;
+
+    // Mobile: full-screen panel
+    function applyMobileStyles() {
+      const isMobile = window.innerWidth <= 600;
+      if (isMobile) {
+        wrap.style.cssText = "position:fixed;bottom:0;right:0;left:0;top:0;z-index:99998;pointer-events:none;display:flex;flex-direction:column;align-items:flex-end;gap:0";
+        panel.style.cssText = "pointer-events:all;position:fixed;top:0;left:0;right:0;bottom:0;width:100%;max-height:100%;border-radius:0;box-shadow:none;overflow:hidden";
+        btn.style.cssText = "pointer-events:all;position:fixed;bottom:24px;right:24px;width:52px;height:52px;border-radius:50%;border:none;background:" + accent + ";cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.2)";
+      } else {
+        wrap.style.cssText = "position:fixed;bottom:24px;right:24px;z-index:99998;display:flex;flex-direction:column;align-items:flex-end;gap:12px";
+        panel.style.cssText = "display:" + (panel.style.display === "none" ? "none" : "") + ";width:420px;max-height:85vh;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.15);overflow:hidden";
+        btn.style.cssText = "width:56px;height:56px;border-radius:50%;border:none;background:" + accent + ";cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.2)";
+      }
+    }
+    applyMobileStyles();
+    window.addEventListener("resize", applyMobileStyles);
+
+    btn.addEventListener("click", () => {
+      const open = panel.style.display === "none";
+      panel.style.display = open ? "" : "none";
+      btn.setAttribute("aria-expanded", String(open));
+      if (window.innerWidth <= 600) btn.style.display = open ? "none" : "flex";
+      if (open && !built) {
+        const isMobile = window.innerWidth <= 600;
+        buildChat(inner, isMobile ? "100dvh" : "85vh");
+        built = true;
+        // Inject close button into chat header (always, not just mobile)
+        const header = inner.querySelector("[id^='iai-new-']")?.parentElement;
+        if (header) {
+          const closeBtn = document.createElement("button");
+          closeBtn.style.cssText = "background:none;border:none;cursor:pointer;padding:6px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:" + (design.theme === "light" ? "#646970" : "#94a3b8");
+          closeBtn.setAttribute("aria-label", "Close chat");
+          closeBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+          closeBtn.addEventListener("click", () => {
+            panel.style.display = "none";
+            if (window.innerWidth <= 600) btn.style.display = "flex";
+            btn.setAttribute("aria-expanded", "false");
+            btn.focus();
+          });
+          header.appendChild(closeBtn);
+        }
+      }
+      if (open) setTimeout(() => inner.querySelector("input")?.focus(), 100);
+    });
+
+    document.addEventListener("keydown", e => {
+      if (e.key === "Escape" && panel.style.display !== "none") {
+        panel.style.display = "none";
+        if (window.innerWidth <= 600) btn.style.display = "flex";
+        btn.focus();
+      }
+    });
+  }
+
+  function buildFullpage() {
+    const il = design.theme === "light";
+    const bg = design.bg || (il ? "#fff" : "#0f1117");
+    const tc = il ? "#1d2327" : "#e2e8f0";
+    const mc = il ? "#646970" : "#94a3b8";
+    const bc = il ? "#e0e0e0" : "#2d3148";
+    const sb = il ? "#f6f7f7" : "#1a1d27";
+    const bb = design.botBubble || (il ? "#f1f5f9" : "#1a1d27");
+    const ub = design.userBubble || accent;
+    const fs = (design.fontSize || 14) + "px";
+    const logo  = design.logo || "";
+    const title = design.title || "AI Assistant";
+    const subtitle = design.subtitle || "Ask me anything";
+    const SK = "iai_s_" + (tenant.value || "d");
+    const uid = "fp" + Math.random().toString(36).slice(2, 7);
+
+    let chips = []; try { chips = JSON.parse(design.suggestions || "[]"); } catch {}
+    const ch = chips.map(c => `<button class="iai-fpc" style="background:transparent;border:1px solid ${bc};color:${tc};padding:7px 16px;border-radius:99px;cursor:pointer;font-size:13px;opacity:.75">${esc(c)}</button>`).join("");
+    const logoSvg = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
+    const av = logo ? `<img src="${esc(logo)}" style="width:28px;height:28px;border-radius:50%;object-fit:cover">` : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><line x1="12" y1="7" x2="12" y2="11"/></svg>`;
+    const logoLg = logo ? `<img src="${esc(logo)}" style="width:64px;height:64px;border-radius:50%;object-fit:cover">` : `<div style="width:64px;height:64px;border-radius:50%;background:${accent}22;border:1px solid ${bc};display:flex;align-items:center;justify-content:center;color:${accent}">${logoSvg}</div>`;
+
+    root.style.cssText = "width:100%;height:calc(100svh - 120px);display:flex;font-family:system-ui,sans-serif;font-size:" + fs + ";background:" + bg + ";border:1px solid " + bc + ";border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.1)";
+
+    // Responsive: hide sidebar on mobile
+    function applyFpResponsive() {
+      const sidebar = root.querySelector("[id^='iai-fphist-']")?.parentElement?.parentElement;
+      const msgs = root.querySelector("[id^='iai-fpmsgs-']");
+      const inputArea = msgs?.nextElementSibling;
+      const isMobile = window.innerWidth <= 768;
+      if (sidebar) sidebar.style.display = isMobile ? "none" : "";
+      if (msgs) msgs.style.padding = isMobile ? "16px 16px" : "32px 20%";
+      if (inputArea) inputArea.style.padding = isMobile ? "10px 16px" : "16px 20%";
+      root.style.borderRadius = isMobile ? "0" : "12px";
+      root.style.height = isMobile ? "100svh" : "calc(100svh - 120px)";
+    }
+    applyFpResponsive();
+    window.addEventListener("resize", applyFpResponsive);
+    root.innerHTML = `
+      <div style="width:260px;background:${sb};border-right:1px solid ${bc};display:flex;flex-direction:column;padding:16px 12px;gap:12px;flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:10px;padding:4px 8px">
+          ${logo ? `<img src="${esc(logo)}" style="width:28px;height:28px;border-radius:8px;object-fit:cover;flex-shrink:0">` : `<div style="width:28px;height:28px;border-radius:8px;background:${accent};display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>`}
+          <span style="font-size:15px;font-weight:700;color:${tc}">${esc(title)}</span>
+        </div>
+        <button id="iai-fpnew-${uid}" style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;border:none;background:${accent};color:#fff;font-size:14px;font-weight:600;cursor:pointer;text-align:left">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New Chat
+        </button>
+        <div id="iai-fphist-${uid}" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px">
+          <p style="font-size:13px;color:${mc};padding:8px">No previous chats</p>
+        </div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:${bg}">
+        <div id="iai-fpmsgs-${uid}" style="flex:1;overflow-y:auto;padding:32px 20%">
+          <div id="iai-fpwelcome-${uid}" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60%;gap:14px;text-align:center;padding:40px">
+            ${logoLg}
+            <h2 style="font-size:24px;font-weight:700;color:${tc};margin:0">${esc(title)}</h2>
+            <p style="font-size:15px;color:${mc};margin:0">${esc(subtitle)}</p>
+            ${ch ? `<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:8px">${ch}</div>` : ""}
+          </div>
+        </div>
+        <div style="padding:16px 20%;border-top:1px solid ${bc};background:${bg}">
+          <form id="iai-fpform-${uid}" novalidate>
+            <div style="display:flex;align-items:flex-end;gap:10px;background:${sb};border:1px solid ${bc};border-radius:12px;padding:10px 14px">
+              <textarea id="iai-fpinp-${uid}" rows="1" style="flex:1;background:transparent;border:none;outline:none;color:${tc};font-size:15px;line-height:1.6;resize:none;max-height:160px;font-family:inherit" placeholder="${esc(design.placeholder || "Type your message")}"></textarea>
+              <button type="submit" id="iai-fpsend-${uid}" style="width:36px;height:36px;border-radius:8px;border:none;background:${accent};cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;opacity:.4;flex-shrink:0" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </div>
+            <p style="font-size:12px;color:${mc};text-align:center;margin:8px 0 0;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap">
+              AI can make mistakes · <a href="https://injectailabs.space" target="_blank" rel="noopener" style="color:${mc};text-decoration:none;font-weight:600">Powered by InjectAI Labs</a>
+            </p>
+          </form>
+        </div>
+      </div>`;
+
+    const mb   = root.querySelector("#iai-fpmsgs-" + uid);
+    const inp  = root.querySelector("#iai-fpinp-" + uid);
+    const sb2  = root.querySelector("#iai-fpsend-" + uid);
+    const hist = root.querySelector("#iai-fphist-" + uid);
+    let sid = null, lding = false, sessions = [];
+
+    // Auto-resize textarea
+    inp.addEventListener("input", () => {
+      sb2.disabled = !inp.value.trim() || lding; sb2.style.opacity = sb2.disabled ? ".4" : "1";
+      inp.style.height = "auto"; inp.style.height = Math.min(inp.scrollHeight, 160) + "px";
+    });
+    // Enter sends, Shift+Enter = newline
+    inp.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); root.querySelector("#iai-fpform-" + uid).dispatchEvent(new Event("submit")); } });
+
+    // Chip clicks
+    root.querySelectorAll(".iai-fpc").forEach(c => c.addEventListener("click", () => { inp.value = c.textContent; sb2.disabled = false; sb2.style.opacity = "1"; inp.focus(); }));
+
+    function renderHist() {
+      if (!sessions.length) { hist.innerHTML = `<p style="font-size:13px;color:${mc};padding:8px">No previous chats</p>`; return; }
+      hist.innerHTML = sessions.map((s, i) => `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;cursor:pointer;font-size:13px;color:${i===0?tc:mc};background:${i===0?accent+"22":"transparent"}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.title)}</span></div>`).join("");
+    }
+
+    async function initSession() {
+      if (!PROXY) return;
+      try {
+        const saved = sessionStorage.getItem(SK);
+        if (saved) {
+          try {
+            const ex = await pf(PROXY + "/chat/session/get?sessionId=" + encodeURIComponent(saved));
+            if (ex.success && ex.session) {
+              sid = ex.session.session_id;
+              const msgs = ex.session.messages || [];
+              if (msgs.length) {
+                root.querySelector("#iai-fpwelcome-" + uid)?.remove();
+                msgs.forEach(m => am(m.role === "user" ? "user" : "assistant", m.content || m.message || "", m.sources, m.created_at));
+                mb.scrollTop = mb.scrollHeight;
+                const firstUser = msgs.find(m => m.role === "user");
+                if (firstUser) sessions.unshift({ id: sid, title: (firstUser.content || firstUser.message || "").slice(0, 40) });
+                else sessions.unshift({ id: sid, title: "Previous Chat" });
+                renderHist();
+              } else {
+                sessions.unshift({ id: sid, title: "New Chat" });
+                renderHist();
+              }
+              return;
+            }
+          } catch {}
+        }
+        const d = await pf(PROXY + "/chat/session", "POST", { metadata_filters: bm });
+        sid = d.session.session_id;
+        sessionStorage.setItem(SK, sid);
+        sessions.unshift({ id: sid, title: "New Chat" });
+        renderHist();
+      } catch {}
+    }
+    initSession();
+
+    root.querySelector("#iai-fpnew-" + uid)?.addEventListener("click", () => {
+      mb.innerHTML = `<div id="iai-fpwelcome-${uid}" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60%;gap:14px;text-align:center;padding:40px">${logoLg}<h2 style="font-size:24px;font-weight:700;color:${tc};margin:0">${esc(title)}</h2><p style="font-size:15px;color:${mc};margin:0">${esc(subtitle)}</p>${ch ? `<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:8px">${ch}</div>` : ""}</div>`;
+      root.querySelectorAll(".iai-fpc").forEach(c => c.addEventListener("click", () => { inp.value = c.textContent; sb2.disabled = false; sb2.style.opacity = "1"; inp.focus(); }));
+      sid = null; sessionStorage.removeItem(SK); initSession();
+    });
+
+    function am(role, text, sources, ts) {
+      root.querySelector("#iai-fpwelcome-" + uid)?.remove();
+      const e = document.createElement("div");
+      e.style.cssText = "display:flex;gap:14px;align-items:flex-start;" + (role === "user" ? "flex-direction:row-reverse" : "");
+      const bs = role === "user" ? `background:${ub};color:#fff;border-bottom-right-radius:4px` : `background:${sb};color:${tc};border:1px solid ${bc};border-bottom-left-radius:4px`;
+      const as2 = role === "user" ? `background:${sb};border:1px solid ${bc};color:${mc}` : `background:${accent}`;
+      const ac2 = role === "user" ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>` : av;
+      const sender = role === "user" ? "You" : esc(title);
+      const time = ts ? new Date(ts).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}) : new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
+      const srcHtml = (sources && sources.length) ? buildFpSrc(sources) : "";
+      e.innerHTML = `<div style="width:34px;height:34px;border-radius:50%;${as2};display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0">${ac2}</div><div style="max-width:80%;display:flex;flex-direction:column;gap:4px"><div style="font-size:11px;font-weight:700;color:${mc}">${sender}</div><div style="padding:12px 16px;border-radius:16px;${bs};font-size:15px;line-height:1.7;white-space:pre-wrap;word-break:break-word">${esc(text)}</div>${srcHtml}<div style="font-size:11px;color:${mc};opacity:.6">${time}</div></div>`;
+      mb.appendChild(e); mb.scrollTop = mb.scrollHeight;
+      if (role === "user" && sessions[0] && sessions[0].title === "New Chat") { sessions[0].title = text.slice(0, 40); renderHist(); }
+    }
+
+    function buildFpSrc(sources) {
+      const items = sources.filter(s => s.source_filename || s.text).map((s, i) => {
+        const score = s.score != null ? s.score.toFixed(2) : "";
+        const fname = esc(s.source_filename || "Source " + (i+1));
+        const snippet = esc((s.text || "").replace(/\s+/g," ").trim().slice(0, 160));
+        const url = s.source_url || "";
+        return `<div style="background:${bg};border-radius:8px;padding:8px 10px;border:1px solid ${bc};margin-top:4px"><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:${accent};margin-bottom:3px"><span>${url ? `<a href="${esc(url)}" target="_blank" rel="noopener" style="color:${accent};text-decoration:none">📄 ${fname}</a>` : `📄 ${fname}`}</span>${score ? `<span style="font-family:monospace;color:${mc}">${score}</span>` : ""}</div><p style="font-size:11px;color:${mc};margin:0;line-height:1.5">${snippet}${snippet.length >= 160 ? "…" : ""}</p></div>`;
+      }).join("");
+      if (!items) return "";
+      return `<details style="font-size:12px;margin-top:4px"><summary style="cursor:pointer;color:${mc};font-size:11px">${sources.length} source${sources.length > 1 ? "s" : ""}</summary>${items}</details>`;
+    }
+
+    root.querySelector("#iai-fpform-" + uid)?.addEventListener("submit", async e => {
+      e.preventDefault();
+      const t = inp.value.trim(); if (!t || lding || !api) return;
+      lding = true; inp.value = ""; inp.style.height = "auto"; sb2.disabled = true; sb2.style.opacity = ".4"; am("user", t, null, null);
+      const ty = document.createElement("div"); ty.id = "iai-fpty-" + uid;
+      ty.innerHTML = `<div style="display:flex;gap:14px;align-items:flex-start"><div style="width:34px;height:34px;border-radius:50%;background:${accent};display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0">${av}</div><div style="padding:12px 16px;border-radius:16px;background:${sb};border:1px solid ${bc};display:flex;gap:4px;align-items:center"><span style="width:6px;height:6px;border-radius:50%;background:${mc};animation:iai-b .9s infinite"></span><span style="width:6px;height:6px;border-radius:50%;background:${mc};animation:iai-b .9s .18s infinite"></span><span style="width:6px;height:6px;border-radius:50%;background:${mc};animation:iai-b .9s .36s infinite"></span></div></div>`;
+      mb.appendChild(ty); mb.scrollTop = mb.scrollHeight;
+      try {
+        if (!sid) { const s = await pf(PROXY + "/chat/session", "POST", { metadata_filters: bm }); sid = s.session.session_id; sessionStorage.setItem(SK, sid); }
+        const data = await pf(PROXY + "/chat/query", "POST", { query: t, session_id: sid });
+        document.getElementById("iai-fpty-" + uid)?.remove(); am("assistant", data.result?.answer || "No response.", data.result?.sources, null);
+      } catch (err) { document.getElementById("iai-fpty-" + uid)?.remove(); am("assistant", err.message); }
+      finally { lding = false; sb2.disabled = !inp.value.trim(); sb2.style.opacity = sb2.disabled ? ".4" : "1"; inp.focus(); }
+    });
+  }
+})();
+</script>
+
+<style is:global>
+  @keyframes iai-b { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
+
+  /* Floating chat — mobile full screen */
+  @media (max-width: 600px) {
+    #iai-fw { pointer-events: none !important; }
+    #iai-fw > * { pointer-events: all; }
+    #iai-fp { animation: iai-slide-up .25s ease !important; }
+    @keyframes iai-slide-up {
+      from { transform: translateY(100%); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+  }
+</style>
