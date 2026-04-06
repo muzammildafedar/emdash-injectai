@@ -20,8 +20,6 @@ npm install @injectailabs/emdash-injectai
 - Node.js `>=18.0.0`
 - An [InjectAI Labs](https://injectailabs.space) account — you need an API endpoint URL and a secret key
 
-> This plugin uses **native format** (React admin UI + API routes). It must be installed via npm and registered in `astro.config.mjs`. It is not available through the EmDash admin marketplace.
-
 ---
 
 ## Installation
@@ -71,32 +69,7 @@ export default defineConfig({
 
 > The `vite.optimizeDeps.exclude` and `vite.ssr.external` entries are required. Without them, Vite's dep optimizer will try to pre-bundle the plugin and cause worker crashes in dev mode.
 
-**3. Add fragment injection points to your layout**
-
-The global chat widget uses EmDash's `page:fragments` hook. Your base layout **must** include both `<EmDashHead>` and `<EmDashBodyEnd>` — these are standard EmDash components that all plugins rely on.
-
-```astro
----
-import { EmDashHead, EmDashBodyEnd } from "emdash/ui";
-import { createPublicPageContext } from "emdash/page";
-
-const pageCtx = createPublicPageContext({ Astro, kind: "custom", ... });
----
-<html>
-  <head>
-    <EmDashHead page={pageCtx} />
-  </head>
-  <body>
-    <slot />
-    <!-- Required for page:fragments hooks — global chat injects here -->
-    <EmDashBodyEnd page={pageCtx} />
-  </body>
-</html>
-```
-
-> `<EmDashBodyEnd>` is a standard EmDash component — not specific to this plugin. Any EmDash plugin that uses `page:fragments` (analytics, SEO scripts, chat widgets) requires it. If your template already has it, no changes needed.
-
-**4. Start your dev server**
+**3. Start your dev server**
 
 ```bash
 npm run dev
@@ -153,18 +126,18 @@ Drag and drop files or click to browse. Supported formats:
 
 Files up to **5 GB** are supported. After uploading, switch to the **Files** tab to monitor processing status.
 
-Processing goes through these stages: `uploading` → `processing` → `completed` (or `failed`).
+Processing stages: `uploading` → `processing` → `completed` (or `failed`).
 
 ### Step 4 — Design the chat widget
 
 Go to **Admin → Plugins → InjectAI → Chat Designer**.
 
 Customize:
-- **Mode** — Floating button (bottom-right) or Full-page (ChatGPT-style with sidebar)
-- **Theme** — Dark or Light
-- **Colors** — Accent, background, user bubble, bot bubble
-- **Typography** — Font size, border radius
-- **Content** — Title, subtitle, placeholder text, welcome message, suggestion chips
+- Mode — Floating button (bottom-right) or Full-page (ChatGPT-style with sidebar)
+- Theme — Dark or Light
+- Colors — Accent, background, user bubble, bot bubble
+- Typography — Font size, border radius
+- Content — Title, subtitle, placeholder text, welcome message, suggestion chips
 
 A live preview updates as you change settings.
 
@@ -172,21 +145,13 @@ A live preview updates as you change settings.
 
 ## Embedding the chat widget
 
-### Option A — Global (all pages)
-
-Go to **Admin → Plugins → InjectAI → Embed** and toggle **Show chat on all pages**.
-
-This injects a floating chat button on every public page of your site. It always uses floating mode regardless of the Chat Designer mode setting.
-
-If a page already has an InjectAI Chat block inserted via the content editor, the global widget is automatically suppressed on that page to avoid duplicates.
-
-### Option B — Specific page via content editor
+### Option A — Specific page via content editor
 
 Open any page in the EmDash content editor, type `/` and select **InjectAI Chat** from the block menu.
 
-The widget renders using the mode set in Chat Designer — floating or full-page. You can insert it on as many pages as you like independently.
+The widget renders using the mode set in Chat Designer — floating or full-page.
 
-### Option C — Astro template (manual)
+### Option B — Astro template (manual)
 
 Import the component directly in any `.astro` file:
 
@@ -202,22 +167,19 @@ import InjectAIChat from "@injectailabs/emdash-injectai/components";
 <InjectAIChat forceFloating />
 ```
 
-This is useful for custom layouts or pages outside the EmDash content system.
-
 ---
 
 ## Admin panel tabs
 
 | Tab | What it does |
 |---|---|
-| **Settings** | API endpoint, secret key, agent config |
-| **Upload** | Upload files to the knowledge base |
-| **Files** | View uploaded files, check processing status, delete |
-| **Generate** | Generate modules, quizzes, or checklists from uploaded content |
-| **History** | Browse and inspect all public chat sessions |
-| **Chat Designer** | Customize widget appearance with live preview |
-| **Embed** | Toggle global chat, copy embed snippet |
-| **Docs** | Quick reference |
+| Settings | API endpoint, secret key, agent config |
+| Upload | Upload files to the knowledge base |
+| Files | View uploaded files, check processing status, delete |
+| Generate | Generate modules, quizzes, or checklists from uploaded content |
+| Chat History | Browse and inspect all public chat sessions |
+| Chat Designer | Customize widget appearance with live preview |
+| Documentation | Quick reference |
 
 ---
 
@@ -225,12 +187,12 @@ This is useful for custom layouts or pages outside the EmDash content system.
 
 Go to **Admin → Plugins → InjectAI → Generate**.
 
-1. Choose a content type: **Module** (HTML), **Quiz** (JSON), or **Checklist** (JSON)
+1. Choose a content type: Module (HTML), Quiz (JSON), or Checklist (JSON)
 2. Enter the Upload ID or Batch ID from the Files tab
 3. Optionally edit the system/user prompts
 4. Click **Generate**
 
-The provider and model are read from your saved Agent Configuration — you don't need to re-enter them here.
+The provider and model are read from your saved Agent Configuration.
 
 ---
 
@@ -240,7 +202,7 @@ The provider and model are read from your saved Agent Configuration — you don'
 → Go to Settings, enter your Modal URL, and click Save.
 
 **"Secret key not configured" when saving agent config or uploading**
-→ Enter your secret key in Settings and save. It only needs to be entered once.
+→ Enter your secret key in Settings and save.
 
 **Site Token shows "(generating…)"**
 → Save Settings once — this triggers token generation.
@@ -248,13 +210,9 @@ The provider and model are read from your saved Agent Configuration — you don'
 **Files stuck in `processing`**
 → Check your Modal deployment logs. Processing is handled asynchronously by the backend.
 
-**Global chat not appearing**
-→ Two things to check:
-1. Confirm the Embed toggle is on and `apiEndpoint` is saved in Settings.
-2. Make sure your base layout has `<EmDashBodyEnd page={pageCtx} />` just before `</body>`. This is the injection point the plugin uses — without it the script is never written into the page HTML.
-
 **Chat widget not rendering on a specific page**
-→ Make sure the page renders its content through `<PortableText>`. If your template uses a custom wrapper component with an explicit `type` map (e.g. `components={{ type: myTypes }}`), add `"injectai-chat"` to that map:
+→ Make sure the page renders its content through `<PortableText>`. If your template uses a custom `type` map, add `"injectai-chat"` to it:
+
 ```js
 import InjectAIChat from "@injectailabs/emdash-injectai/components";
 
@@ -263,7 +221,6 @@ const myTypes = {
   "injectai-chat": InjectAIChat,
 };
 ```
-Plugin components are auto-wired only when `<PortableText>` is used without a custom `type` override.
 
 ---
 
@@ -271,7 +228,7 @@ Plugin components are auto-wired only when `<PortableText>` is used without a cu
 
 - Email: [injectailabs.space@gmail.com](mailto:injectailabs.space@gmail.com)
 - Website: [injectailabs.space](https://injectailabs.space)
-- Issues: [github.com/injectailabs/emdash-plugin-injectai/issues](https://github.com/injectailabs/emdash-plugin-injectai/issues)
+- Issues: [github.com/muzammildafedar/emdash-injectai/issues](https://github.com/muzammildafedar/emdash-injectai/issues)
 
 ---
 
