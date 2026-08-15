@@ -1,15 +1,15 @@
-# @injectailabs/emdash-injectai
+# @emdash/injectai
 
 AI chatbot plugin for [EmDash CMS](https://github.com/emdash-cms/emdash) — powered by your own content.
 
 Upload PDFs, videos, and documents. Your visitors get an AI assistant that answers questions grounded in that content — no hallucinations, no generic responses.
 
 ```bash
-npm install @injectailabs/emdash-injectai
+npm install @emdash/injectai
 ```
 
-[![npm](https://img.shields.io/npm/v/@injectailabs/emdash-injectai)](https://www.npmjs.com/package/@injectailabs/emdash-injectai)
-[![license](https://img.shields.io/npm/l/@injectailabs/emdash-injectai)](./LICENSE)
+[![npm](https://img.shields.io/npm/v/@emdash/injectai)](https://www.npmjs.com/package/@emdash/injectai)
+[![license](https://img.shields.io/npm/l/@emdash/injectai)](./LICENSE)
 
 ---
 
@@ -27,7 +27,7 @@ npm install @injectailabs/emdash-injectai
 **1. Install the package**
 
 ```bash
-npm install @injectailabs/emdash-injectai
+npm install @emdash/injectai
 ```
 
 **2. Register in `astro.config.mjs`**
@@ -37,7 +37,7 @@ import { defineConfig } from "astro/config";
 import cloudflare from "@astrojs/cloudflare";
 import react from "@astrojs/react";
 import emdash from "emdash/astro";
-import { injectAI } from "@injectailabs/emdash-injectai";
+import { injectAI } from "@emdash/injectai";
 
 export default defineConfig({
   output: "server",
@@ -45,16 +45,16 @@ export default defineConfig({
   vite: {
     optimizeDeps: {
       exclude: [
-        "@injectailabs/emdash-injectai",
-        "@injectailabs/emdash-injectai/sandbox",
-        "@injectailabs/emdash-injectai/admin",
-        "@injectailabs/emdash-injectai/astro",
+        "@emdash/injectai",
+        "@emdash/injectai/sandbox",
+        "@emdash/injectai/admin",
+        "@emdash/injectai/astro",
       ],
     },
     ssr: {
       external: [
-        "@injectailabs/emdash-injectai",
-        "@injectailabs/emdash-injectai/sandbox",
+        "@emdash/injectai",
+        "@emdash/injectai/sandbox",
       ],
     },
   },
@@ -157,7 +157,7 @@ Import the component directly in any `.astro` file:
 
 ```astro
 ---
-import InjectAIChat from "@injectailabs/emdash-injectai/components";
+import InjectAIChat from "@emdash/injectai/components";
 ---
 
 <!-- Uses Chat Designer mode (floating or full-page) -->
@@ -214,7 +214,7 @@ The provider and model are read from your saved Agent Configuration.
 → Make sure the page renders its content through `<PortableText>`. If your template uses a custom `type` map, add `"injectai-chat"` to it:
 
 ```js
-import InjectAIChat from "@injectailabs/emdash-injectai/components";
+import InjectAIChat from "@emdash/injectai/components";
 
 const myTypes = {
   // ...your existing types

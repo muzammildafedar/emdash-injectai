@@ -16,7 +16,7 @@ export function createPlugin() {
     allowedHosts: ["*", "*.modal.run", "*.injectailabs.space", "localhost"],
 
     admin: {
-      entry: "@injectailabs/emdash-injectai/admin",
+      entry: "@emdash/injectai/admin",
       pages: [{ path: "/", label: "InjectAI", icon: "puzzle-piece" }],
       widgets: [{ id: "injectai-status", title: "InjectAI", size: "half" }],
       portableTextBlocks: [

@@ -14,10 +14,10 @@ export function injectAI(options: InjectAIOptions = {}): PluginDescriptor<Inject
     id: options.id ?? "injectai",
     version: "1.0.0",
     format: "native",
-    entrypoint: "@injectailabs/emdash-injectai/sandbox",
+    entrypoint: "@emdash/injectai/sandbox",
     options,
-    componentsEntry: "@injectailabs/emdash-injectai/astro",
-    adminEntry: "@injectailabs/emdash-injectai/admin",
+    componentsEntry: "@emdash/injectai/astro",
+    adminEntry: "@emdash/injectai/admin",
     adminPages: [
       { path: "/", label: "InjectAI", icon: "puzzle-piece" },
     ],
